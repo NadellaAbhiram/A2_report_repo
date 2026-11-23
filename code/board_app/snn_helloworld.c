@@ -5,9 +5,9 @@
 #include "xil_printf.h"
 #include "xil_io.h"
 #include "xparameters.h"
-#include "xtime_l.h"
+#include "xiltimer.h"
 #include "xuartps.h"
-#include "xgpio.h"
+//#include "xgpio.h"
 #include "xsnn_mlp_hw.h"
 
 extern char inbyte(void);
@@ -16,8 +16,8 @@ extern void outbyte(char c);
 // ============================================================
 // UART CONFIG
 // ============================================================
-#ifndef UART_DEVICE_ID
-#define UART_DEVICE_ID   XPAR_XUARTPS_1_DEVICE_ID
+#ifndef UART_BASEADDR
+#define UART_BASEADDR   XPAR_XUARTPS_0_BASEADDR
 #endif
 
 #ifndef UART_BAUD
@@ -29,28 +29,29 @@ extern void outbyte(char c);
 // Python sends already-preprocessed int16 features
 // 12x16 grid, ON/OFF = 384 features for T=1
 // ============================================================
-#define T_STEPS     1
+#define T_STEPS     5
 #define GRID_H      12
-#define GRID_W      16
+#define GRID_W      12
+#define N_TOTAL (T_STEPS * N_FEATURES) 
 #define N_FEATURES  (GRID_H * GRID_W * 2)
-#define RX_BYTES    (N_FEATURES * sizeof(int16_t))
+#define RX_BYTES    (N_TOTAL * sizeof(int16_t))
 
 // Python packet:
-// 0xAA 0x55 <384 int16 little-endian features>
+// 0xAA 0x55 + 1440 int16 little-endian features>
 #define FRAME_START_0  0xAA
 #define FRAME_START_1  0x55
 
 // ============================================================
 // SNN AXI-Lite base + registers
 // ============================================================
-#define IP_BASE_ADDR  XPAR_SNN_MLP_0_S_AXI_CTRL_BASEADDR
+#define IP_BASE_ADDR  XPAR_SNN_MLP_0_BASEADDR
 
-#define REG_AP_CTRL        XSNN_MLP_CTRL_ADDR_AP_CTRL
-#define REG_FEATURE_MEM_L  XSNN_MLP_CTRL_ADDR_FEATURE_MEM_DATA
-#define REG_FEATURE_MEM_H  (XSNN_MLP_CTRL_ADDR_FEATURE_MEM_DATA + 0x04)
+#define REG_AP_CTRL        XSNN_MLP_CONTROL_ADDR_AP_CTRL
+#define REG_FEATURE_MEM_L  XSNN_MLP_CONTROL_ADDR_FEATURE_MEM_DATA
+#define REG_FEATURE_MEM_H  (XSNN_MLP_CONTROL_ADDR_FEATURE_MEM_DATA + 0x04)
 
-#define REG_PRED_OUT       XSNN_MLP_CTRL_ADDR_PREDICTION_DATA
-#define REG_LOGITS_BASE    XSNN_MLP_CTRL_ADDR_LOGITS_OUT_BASE
+#define REG_PRED_OUT       XSNN_MLP_CONTROL_ADDR_PREDICTION_DATA
+#define REG_LOGITS_BASE    XSNN_MLP_CONTROL_ADDR_LOGITS_OUT_BASE
 
 #define AP_DONE_BIT        1
 
@@ -58,7 +59,7 @@ extern void outbyte(char c);
 // AXI BRAM Controller base
 // SNN m_axi reads from this BRAM address
 // ============================================================
-#define FEATURE_BRAM_BASE  XPAR_AXI_BRAM_CTRL_0_S_AXI_BASEADDR
+#define FEATURE_BRAM_BASE  XPAR_AXI_BRAM_CTRL_0_BASEADDR
 
 static inline void ip_write(uint32_t off, uint32_t val)
 {
@@ -69,7 +70,7 @@ static inline uint32_t ip_read(uint32_t off)
 {
     return Xil_In32(IP_BASE_ADDR + off);
 }
-
+/*
 // ============================================================
 // AXI GPIO timing pin
 // ============================================================
@@ -114,14 +115,14 @@ static inline void timing_pin_low(void)
 {
     XGpio_DiscreteWrite(&Gpio, GPIO_CH, 0x00000000);
 }
-
+*/
 // ============================================================
 // UART helpers
 // ============================================================
 static void uart_set_baudrate(u32 baud)
 {
     XUartPs Uart;
-    XUartPs_Config *Cfg = XUartPs_LookupConfig(UART_DEVICE_ID);
+    XUartPs_Config *Cfg = XUartPs_LookupConfig(UART_BASEADDR);
 
     if (!Cfg) {
         return;
@@ -158,7 +159,7 @@ static void wait_for_frame_header(void)
 // ============================================================
 // Feature buffer
 // ============================================================
-static int16_t feature_mem[N_FEATURES];
+static int16_t feature_mem[N_TOTAL];
 
 // ============================================================
 // Receive 384 int16 features from Python
@@ -166,7 +167,7 @@ static int16_t feature_mem[N_FEATURES];
 // ============================================================
 static void receive_features_from_uart(void)
 {
-    for (int i = 0; i < N_FEATURES; i++) {
+    for (int i = 0; i < N_TOTAL; i++) {
         uint8_t lo = read_byte_blocking();
         uint8_t hi = read_byte_blocking();
 
@@ -181,7 +182,7 @@ static void receive_features_from_uart(void)
 // ============================================================
 static void write_features_to_bram(void)
 {
-    for (int i = 0; i < N_FEATURES; i++) {
+    for (int i = 0; i < N_TOTAL; i++) {
         Xil_Out16(
             FEATURE_BRAM_BASE + (i * sizeof(int16_t)),
             (uint16_t)feature_mem[i]
@@ -237,21 +238,21 @@ int main(void)
 {
     init_platform();
     uart_set_baudrate(UART_BAUD);
-
+/*
     if (gpio_init() != XST_SUCCESS) {
         xil_printf("GPIO init failed. Check AXI GPIO in block design.\r\n");
         cleanup_platform();
         return 1;
-    }
+    }*/
 
-    timing_pin_low();
+    //timing_pin_low();
 
-    xil_printf("\r\nAXI GPIO init OK ...\r\n");
+    //xil_printf("\r\nAXI GPIO init OK ...\r\n");
     xil_printf("COUNTS_PER_SECOND=%lu\r\n", (unsigned long)COUNTS_PER_SECOND);
     xil_printf("Framed UART(int16 features) -> SNN MLP\r\n");
-    xil_printf("UART_DEVICE_ID=%d UART_BAUD=%lu\r\n",
-               UART_DEVICE_ID, (unsigned long)UART_BAUD);
-    xil_printf("N_FEATURES=%d\r\n", N_FEATURES);
+    xil_printf("UART_BASEADDR=%lx UART_BAUD=%lu\r\n",
+               UART_BASEADDR, (unsigned long)UART_BAUD);
+    xil_printf("N_TOTAL=%d\r\n", N_TOTAL);
     xil_printf("RX_BYTES=%d\r\n", RX_BYTES);
     xil_printf("FEATURE_BRAM_BASE=0x%08lx\r\n",
                (unsigned long)FEATURE_BRAM_BASE);
@@ -275,7 +276,7 @@ int main(void)
 
         XTime_GetTime(&t0);
 
-        timing_pin_high();
+        //timing_pin_high();
 
         ip_write(REG_AP_CTRL, 0x01);
 
@@ -283,7 +284,7 @@ int main(void)
             // wait for ap_done
         }
 
-        timing_pin_low();
+       //timing_pin_low();
 
         XTime_GetTime(&t1);
 
@@ -295,10 +296,12 @@ int main(void)
 
         uint32_t pred = ip_read(REG_PRED_OUT);
 
-        int32_t logit0 = (int32_t)ip_read(REG_LOGITS_BASE + 0x00);
-        int32_t logit1 = (int32_t)ip_read(REG_LOGITS_BASE + 0x04);
-        int32_t logit2 = (int32_t)ip_read(REG_LOGITS_BASE + 0x08);
-        int32_t logit3 = (int32_t)ip_read(REG_LOGITS_BASE + 0x0C);
+        uint32_t w0 = ip_read(REG_LOGITS_BASE + 0x0);
+        uint32_t w1 = ip_read(REG_LOGITS_BASE + 0x4);
+        int32_t logit0 = (int16_t)(w0 & 0xFFFF);
+        int32_t logit1 = (int16_t)((w0 >> 16) & 0xFFFF);
+        int32_t logit2 = (int16_t)(w1 & 0xFFFF);
+        int32_t logit3 = (int16_t)((w1 >> 16) & 0xFFFF);
 
         uart_send_pred_time_logits_frame(
             (uint8_t)(pred & 0xFFu),

@@ -11,7 +11,7 @@
 #include "xtime_l.h"
 #include "xuartps.h"
 
-#include "xgpio.h"   // AXI GPIO
+//#include "xgpio.h"   // AXI GPIO
 
 extern char inbyte(void);
 extern void outbyte(char c);
@@ -31,7 +31,7 @@ extern void outbyte(char c);
 // DWPW CNN input (60x80)
 // ============================================================
 #define IMG_H     60
-#define IMG_W     80
+#define IMG_W     60
 #define N_INPUTS  (IMG_H * IMG_W)
 #define RX_BYTES  (N_INPUTS * 2)
 
@@ -39,6 +39,15 @@ extern void outbyte(char c);
 #define FRAME_START_0  0xA6
 #define FRAME_START_1  0x6A
 
+// BRAM base address (from Vivado BD)
+#define IMG_BRAM_BASE 
+XPAR_AXI_BRAM_CTRL_0_S_AXI_BASEADDR
+
+for(i=0;i<N_INPUTS;i++)
+    {
+        xil_out16(IMG_BRAM_BASE + i*2, sample[i]);
+    }
+/*
 // ============================================================
 // DWPW CNN AXI-Lite base + regs
 // ============================================================
@@ -63,7 +72,8 @@ static inline uint32_t ip_read(uint32_t off)
 {
     return Xil_In32(IP_BASE_ADDR + off);
 }
-
+*/
+/*
 // ============================================================
 // AXI GPIO (TIMING PIN)
 // ============================================================
@@ -105,7 +115,7 @@ static inline void timing_pin_low(void)
 {
     XGpio_DiscreteWrite(&Gpio, GPIO_CH, 0x00000000);
 }
-
+*/
 // ============================================================
 // UART helpers
 // ============================================================
@@ -143,7 +153,7 @@ static void wait_for_frame_header(void)
 // Buffers
 // ============================================================
 static uint8_t  rx_buf[RX_BYTES];
-static int16_t  ddr_input[N_INPUTS] __attribute__((aligned(64)));
+//static int16_t  ddr_input[N_INPUTS] __attribute__((aligned(64)));
 
 // ============================================================
 // Reply frame (Option A: TRUE TIME IN MICROSECONDS):
@@ -225,13 +235,13 @@ int main(void)
             ddr_input[i] = (int16_t)u;
         }
 
-        Xil_DCacheFlushRange((UINTPTR)ddr_input, N_INPUTS * sizeof(int16_t));
+       // Xil_DCacheFlushRange((UINTPTR)ddr_input, N_INPUTS * sizeof(int16_t)); (old code)
 
         UINTPTR addr = (UINTPTR)ddr_input;
 //        ip_write(REG_INPUT_IMG_L, (uint32_t)(addr & 0xFFFFFFFFu));
 //        ip_write(REG_INPUT_IMG_H, (uint32_t)((addr >> 32) & 0xFFFFFFFFu));
 
-        ip_write(REG_INPUT_IMG_L, (uint32_t)addr);
+        ip_write(REG_INPUT_IMG_L, IMG_BRAM_BASE);
         ip_write(REG_INPUT_IMG_H, 0u);
 
         // measure

@@ -4,6 +4,7 @@
 venv/
 cnn_env/
 *.zip
+!hardware/*.zip
 .env
 .DS_Store
 .Xil/
