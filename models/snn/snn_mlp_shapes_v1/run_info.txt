@@ -1,0 +1,24 @@
+root=/Users/chamath/Documents/WORK/tmp.nosync/Assignment2.nosync/shapes_aug_dataset_60x60
+classes=['square', 'circle', 'figure8', 'triangle']
+img_h=60
+img_w=60
+T=5
+grid_h=12
+grid_w=12
+n_features_per_timestep=288
+input_shape=[5, 288]
+model_type=snn
+feature_type=snn_mlp_on_off
+subset_size=1000000000
+batch_size=32
+epochs=30
+lr=0.001
+seed=42
+sobel_percentile=90
+architecture=SNN snn_mlp [T=5, 288] -> 64 -> 32 -> 4 with LIF3
+spike_penalty_weight=1e-05
+early_exit_confidence=0.7
+device=cpu
+output_lif_layer=True
+loss_output=final_lif3_membrane_potential
+spike_penalty_layers=lif1,lif2,lif3

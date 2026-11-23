@@ -1,0 +1,11 @@
+﻿__pycache__/
+*.pyc
+.venv/
+venv/
+cnn_env/
+*.zip
+.env
+.DS_Store
+.Xil/
+*.jou
+*.log

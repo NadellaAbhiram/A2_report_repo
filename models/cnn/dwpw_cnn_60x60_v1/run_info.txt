@@ -1,0 +1,11 @@
+seed=42
+root=/Users/chamath/Documents/WORK/tmp.nosync/Assignment2.nosync/shapes_aug_dataset_60x60
+classes=['square', 'circle', 'figure8', 'triangle']
+img_h=60 img_w=60
+val_split=0.3
+batch=128
+epochs=40
+lr=0.001
+bottleneck_ch=8
+bins_pool_size=(6, 6)
+bins_h=5 bins_w=5
